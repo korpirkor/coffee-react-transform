@@ -20,13 +20,15 @@ log = (message, color, explanation) ->
 
 # Build transformer from source.
 build = (cb) ->
-  run 'mkdir', ['-p','bin', 'lib'], ->
+  run 'mkdir', ['bin', 'lib'], ->
     compile SOURCEFILES, 'src/', 'lib/', ->
       copy JSFILES, 'src/', 'lib/', cb
 
 copy = (srcFiles, srcDir, destDir, cb) ->
-  files = srcFiles.map((filename) -> path.join(srcDir, filename))
-  run 'cp', files.concat([destDir]), cb
+  srcFiles.forEach((filename)->
+    run 'cp', [srcDir+filename, destDir+filename]
+  )
+  cb?()
 
 compile = (srcFiles, srcDir, destDir, cb) ->
   args = [
@@ -41,11 +43,18 @@ compile = (srcFiles, srcDir, destDir, cb) ->
 coffee = (args, cb) -> run 'coffee', args, cb
 
 run = (executable, args = [], cb) ->
-  proc =         spawn executable, args
-  proc.stdout.on 'data', (buffer) -> log buffer.toString(), green
-  proc.stderr.on 'data', (buffer) -> log buffer.toString(), red
-  proc.on        'exit', (status) ->
-		cb() if typeof cb is 'function'
+  ###
+  try
+    proc =         spawn executable, args
+    proc.stdout.on 'data', (buffer) -> log buffer.toString(), green
+    proc.stderr.on 'data', (buffer) -> log buffer.toString(), red
+    proc.on        'exit', (status) ->
+  		cb() if typeof cb is 'function'
+  catch e
+    console.warn('spawn execution failed, exec fallback used', e)
+  ###
+  command = executable + ' ' + (args || []).join(' ')
+  exec command, [], cb
 
 test = -> coffee ['test/test.coffee']
 
