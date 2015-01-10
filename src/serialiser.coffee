@@ -1,16 +1,19 @@
 
 {last, find} = require './helpers'
 
+{ SourceNode } = require('source-map')
 $ = require './symbols'
 
 stringEscape = require './stringescape'
 
 entityDecode = require './entitydecode'
 
-module.exports = exports = serialise = (parseTree) ->
-  new Serialiser().serialise(parseTree)
+module.exports = exports = serialise = (parseTree, filename) ->
+  new Serialiser(filename).serialise(parseTree)
 
 class Serialiser
+  constructor: (@filename) ->
+
   serialise: (parseTree) ->
     if parseTree.children and
     parseTree.children.length and
@@ -25,7 +28,14 @@ class Serialiser
     else
       @reactObject = 'React'
 
-    @serialiseNode(parseTree)
+    result = @serialiseNode(parseTree).toStringWithSourceMap()
+
+    if @filename
+      result.code +
+        "\n# //# sourceMappingURL=data:application/json;base64," +
+        (new Buffer(result.map.toString()).toString('base64'))
+    else
+      result.code
 
   serialiseNode: (node) ->
     unless nodeSerialisers[node.type]?
@@ -33,10 +43,11 @@ class Serialiser
 
     serialised = nodeSerialisers[node.type].call(this, node)
 
-    unless typeof serialised is 'string' or serialised is null
-      throw new Error("serialiser #{node.type} didn\'t return a string")
 
-    serialised
+    unless node.line?
+      return serialised
+
+    return new SourceNode(node.line, node.column, @filename, serialised)
 
   serialiseSpreadAndPairAttributes: (children) ->
     assigns = []
@@ -85,11 +96,11 @@ class Serialiser
       serialisedChildren = for child, childIndex in children
         serialisedChild = @serialiseNode child
         if child.type is $.CJSX_WHITESPACE
-          if containsNewlines(serialisedChild)
+          if containsNewlines(serialisedChild.toString())
             if isBeforeLastSemanticChild(childIndex)
               # escaping newlines within attr object helps avoid
               # parse errors in tags which span multiple lines
-              serialisedChild.replace('\n',' \\\n')
+              serialisedChild.replaceRight('\n',' \\\n')
             else
               # but escaped newline at end of attr object is not allowed
               serialisedChild
@@ -105,9 +116,8 @@ class Serialiser
       null
 
 genericBranchSerialiser = (node) ->
-  node.children
-    .map((child) => @serialiseNode child)
-    .join('')
+  new SourceNode(node.line, node.column, @filename, '')
+      .add(node.children.map((child) => @serialiseNode child))
 
 genericLeafSerialiser = (node) -> node.value
 

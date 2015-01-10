@@ -282,12 +282,18 @@ module.exports = class Parser
   newestNode: -> last(@activeBranchNode().children) or @activeBranchNode()
 
   pushActiveBranchNode: (node) ->
+    # @chunkLine is 0-indexed, but source-map needs these to be 1-indexed
+    node.line = @chunkLine + 1
+    node.column = @chunkColumn
     @activeBranchNode().children.push(node)
     @activeStates.push(node)
 
   popActiveBranchNode: -> @activeStates.pop()
 
   addLeafNodeToActiveBranch: (node) ->
+    # @chunkLine is 0-indexed, but source-map needs these to be 1-indexed
+    node.line = @chunkLine + 1
+    node.column = @chunkColumn
     @activeBranchNode().children.push(node)
 
   # helpers (from cs lexer)
