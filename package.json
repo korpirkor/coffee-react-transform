@@ -18,7 +18,8 @@
   ],
   "scripts": {
     "test": "cake test",
-    "prepublish": "cake build"
+    "prepublish": "cake build",
+    "postinstall": "cake build"
   },
   "files": [
     "index.js",
